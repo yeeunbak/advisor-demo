@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>STT Advisor Demo</title>
+  <style>
+    :root{ --gap:16px; --radius:12px; --border:#e5e7eb; --bg:#f7f8fa; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:#202124}
+    header{position:sticky;top:0;background:#fff;padding:12px 16px;border-bottom:1px solid var(--border)}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--gap)}
+    .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+    .title{font-weight:800;margin:2px 0 12px}
+    .row{display:flex;gap:8px;align-items:center}
+    .stack > * + *{margin-top:12px}
+    input[type="file"]{padding:8px;border:1px dashed #cbd5e1;border-radius:10px;background:#f9fafb}
+    button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .primary{background:#1a73e8;color:#fff}
+    .muted{background:#eef2f7;color:#334}
+    textarea,.textbox{width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:10px;background:#fafafa}
+    .readonly{pointer-events:none;user-select:text;background:#fafafa}
+    .chat{height:360px;overflow:auto;display:flex;flex-direction:column;gap:10px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fafafa}
+    .bubble{max-width:80%;padding:10px 12px;border-radius:16px;line-height:1.45;font-size:14px}
+    .me{align-self:flex-end;background:#e8f0fe;border-top-right-radius:6px}
+    .bot{align-self:flex-start;background:#eceff1;border-top-left-radius:6px}
+    .foot{margin-top:6px;color:#667;font-size:12px}
+    .section-head{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+    .section-head .label{font-weight:800}
+  </style>
+</head>
+<body>
+<header><div class="wrap"><strong>STT Advisor Demo</strong></div></header>
+<main class="wrap">
+  <div class="grid">
+    <!-- 좌: STT -->
+    <section class="card stack">
+      <div class="title">STT</div>
+      <div class="row">
+        <input id="file" type="file" accept=".wav,audio/wav"/>
+        <button id="btnUpload" class="primary">찾기</button>
+      </div>
+      <div id="chat" class="chat"></div>
+      <div class="foot">*.wav(PCM/Linear16, 모노 권장)</div>
+    </section>
+
+    <!-- 중: 키워드 -->
+    <section class="card stack">
+      <div class="section-head">
+        <span class="label">추천키워드</span>
+        <button id="btnKeyword" class="muted">키워드</button>
+      </div>
+      <textarea id="keywords" class="readonly" readonly placeholder="키워드"></textarea>
+
+      <div class="section-head">
+        <span class="label">추천 상담지식</span>
+        <button id="btnSearch" class="muted">지식검색</button>
+      </div>
+      <div id="searchResult" class="textbox readonly" aria-live="polite"></div>
+    </section>
+
+    <!-- 우: 상담요약 -->
+    <section class="card stack">
+      <div class="section-head">
+        <span class="label">상담 요약</span>
+        <button id="btnSummary" class="muted">상담요약</button>
+      </div>
+      <textarea id="summary" class="readonly" readonly placeholder="여기에 요약이 표시됩니다."></textarea>
+
+      <div class="section-head">
+        <span class="label">추천 상담유형</span>
+        <button id="btnRecommend" class="muted">유형추천</button>
+      </div>
+      <div id="recommendOut" class="textbox readonly"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const chat=document.getElementById('chat');
+  function bubble(text,who){
+    const d=document.createElement('div');
+    d.className=`bubble ${who}`;
+    d.textContent=text;
+    chat.appendChild(d);
+    chat.scrollTop=chat.scrollHeight;
+  }
+
+  // STT 업로드
+  document.getElementById('btnUpload').onclick=async()=>{
+    const f=document.getElementById('file').files?.[0];
+    if(!f){ alert('먼저 .wav 파일을 선택하세요.'); return; }
+    bubble(`파일 업로드: ${f.name}`,'me');
+
+    const fd=new FormData();
+    fd.append('audio',f);
+    try{
+      const res=await fetch('/api/stt',{method:'POST',body:fd});
+      if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.error||`HTTP ${res.status}`);}
+      const data=await res.json();
+      const t=(data.transcript||'').trim();
+      bubble(t||'인식 결과가 비었습니다.','bot');
+      document.getElementById('summary').value=t.length>120?t.slice(0,120)+'…':t;
+      document.getElementById('keywords').value=t?`키워드(데모): ${t.split(/\s+/).slice(0,8).join(', ')}`:'';
+    }catch(e){
+      console.error(e);
+      bubble('오류가 발생했습니다. 콘솔을 확인하세요.','bot');
+    }
+  };
+
+  // 키워드 버튼
+  document.getElementById('btnKeyword').onclick=()=>{
+    const lines=['키워드1>키워드1-1','키워드2>키워드2-1','키워드3>키워드3-1'];
+    document.getElementById('keywords').value=lines.join('\n');
+  };
+
+  // 상담요약 버튼
+  document.getElementById('btnSummary').onclick=()=>{
+    document.getElementById('summary').value="상담요약(데모): 고객 문의 내용을 요약한 예시 텍스트입니다.";
+  };
+
+  // 지식검색
+  document.getElementById('btnSearch').onclick=()=>{
+    const q=(document.getElementById('keywords').value||'').trim();
+    document.getElementById('searchResult').textContent=
+      q?`지식검색(데모): "${q.replace(/\n/g,' | ')}" 결과 표시`: '키워드가 없습니다.';
+  };
+
+  // 유형추천
+  document.getElementById('btnRecommend').onclick=()=>{
+    const s=(document.getElementById('summary').value||'').trim();
+    document.getElementById('recommendOut').textContent=
+      s?`유형추천(데모): "${s.slice(0,40)}"${s.length>40?'…':''}`:'요약 내용이 없습니다.';
+  };
+</script>
+</body>
+</html>
